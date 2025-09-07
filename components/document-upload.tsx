@@ -2,6 +2,9 @@
 
 import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
+import { useCompletion } from "@ai-sdk/react"
+import dynamic from "next/dynamic"
+const Streamdown = dynamic(async () => (await import("streamdown")).Streamdown, { ssr: false })
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -53,9 +56,30 @@ const getPriorityColor = (priority: string) => {
 export function DocumentUpload() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [activeFileId, setActiveFileId] = useState<string | null>(null)
+
+  const { completion, complete, error: completionError } = useCompletion({
+    api: "/api/summarize",
+    onFinish: (_prompt, completion) => {
+      console.log("/api/summarize: stream finished, length=", completion.length)
+      setUploadedFiles((prev) =>
+        prev.map((f) =>
+          f.id === activeFileId
+            ? {
+                ...f,
+                status: "completed",
+                summary: completion,
+              }
+            : f,
+        ),
+      )
+      setActiveFileId(null)
+    },
+  })
 
   const processFile = async (file: File): Promise<void> => {
     const fileId = Math.random().toString(36).substr(2, 9)
+    setActiveFileId(fileId)
 
     // Add file to state with uploading status
     setUploadedFiles((prev) => [
@@ -81,39 +105,9 @@ export function DocumentUpload() {
       // Extract text content (simplified - in real app would use proper text extraction)
       const content = `Sample document content for ${file.name}. This would contain the actual extracted text from the uploaded document for processing by the AI system.`
 
-      // Call AI summarization API
-      const response = await fetch("/api/summarize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content,
-          language: "english",
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to process document")
-      }
-
-      const result = await response.json()
-
-      // Update file with results
-      setUploadedFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileId
-            ? {
-                ...f,
-                status: "completed",
-                summary: result.summary,
-                department: result.department,
-                priority: result.priority,
-                category: result.category,
-              }
-            : f,
-        ),
-      )
+      // Call AI summarization API via useCompletion hook
+      console.log("/api/summarize: sending request for file", file.name)
+      await complete("", { body: { content, language: "english" } })
     } catch (error) {
       setUploadedFiles((prev) =>
         prev.map((f) =>
@@ -260,7 +254,7 @@ export function DocumentUpload() {
                   )}
 
                   {/* Results */}
-                  {uploadedFile.status === "completed" && (
+                  {(uploadedFile.status === "completed" || (uploadedFile.id === activeFileId && completion)) && (
                     <div className="space-y-3">
                       <div className="flex gap-2">
                         <Badge variant="outline">{uploadedFile.department}</Badge>
@@ -272,7 +266,9 @@ export function DocumentUpload() {
 
                       <div className="bg-muted/50 rounded-lg p-3">
                         <h5 className="font-medium text-sm mb-2">AI Summary:</h5>
-                        <p className="text-sm text-muted-foreground">{uploadedFile.summary}</p>
+                        <div className="text-sm text-muted-foreground prose prose-sm max-w-none">
+                          <Streamdown>{uploadedFile.id === activeFileId ? completion : uploadedFile.summary}</Streamdown>
+                        </div>
                       </div>
                     </div>
                   )}

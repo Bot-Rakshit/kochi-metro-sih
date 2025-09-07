@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
+const Streamdown = dynamic(async () => (await import("streamdown")).Streamdown, { ssr: false })
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +69,7 @@ export function AISummarizationPanel() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-no-stream": "1",
         },
         body: JSON.stringify({
           content: inputText,
@@ -78,7 +81,7 @@ export function AISummarizationPanel() {
         throw new Error("Failed to process document")
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as SummarizationResult
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed")
@@ -210,7 +213,9 @@ export function AISummarizationPanel() {
                     <FileText className="h-4 w-4" />
                     AI-Generated Summary
                   </h4>
-                  <p className="text-sm leading-relaxed">{result.summary}</p>
+                  <div className="text-sm text-muted-foreground prose prose-sm max-w-none">
+                    <Streamdown>{result.summary}</Streamdown>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

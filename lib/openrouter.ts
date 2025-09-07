@@ -1,10 +1,18 @@
+import OpenAI from "openai"
+
 // OpenRouter API integration for KMRL document processing
 export class OpenRouterClient {
-  private apiKey: string
-  private baseUrl = "https://openrouter.ai/api/v1"
+  private client: OpenAI
 
   constructor(apiKey: string) {
-    this.apiKey = apiKey
+    this.client = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: apiKey,
+      defaultHeaders: {
+        "HTTP-Referer": "http://localhost:3000", // Replace with your actual site URL
+        "X-Title": "Kochi Metro SIH", // Replace with your actual site name
+      },
+    })
   }
 
   async summarizeDocument(
@@ -20,33 +28,20 @@ export class OpenRouterClient {
 
     const userPrompt =
       language === "malayalam"
-        ? `ഈ KMRL ഡോക്യുമെന്റിന്റെ പ്രധാന പോയിന്റുകൾ സംഗ്രഹിക്കുക. പ്രധാന നടപടികൾ, സമയപരിധി, ഉത്തരവാദിത്തങ്ങൾ എന്നിവ ഉൾപ്പെടുത്തുക:\n\n${content}`
-        : `Summarize this KMRL document focusing on key actionable items, deadlines, responsibilities, and operational impacts. Be concise but comprehensive:\n\n${content}`
+        ? `ഈ KMRL ഡോക്യുമെന്റിന്റെ പ്രധാന പോയിന്റുകൾ സംഗ്രഹിക്കുക. പ്രധാന നടപടികൾ, സമയപരിധി, ഉത്തരവാദിത്തങ്ങൾ എന്നിവ ഉൾപ്പെടുത്തുക. ചുരുക്കമായി (പരമാവധി 120 വാക്കുകൾ), 4-6 ബുള്ളറ്റ് പോയിന്റുകളായി നൽകുക. Markdown ഉപയോഗിച്ച് പട്ടികയായി നൽകുക:\n\n${content}`
+        : `Summarize this KMRL document focusing on key actionable items, deadlines, responsibilities, and operational impacts. Keep it very brief: 4-6 bullet points, max ~120 words total. Return as Markdown bullet list:\n\n${content}`
 
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct:free",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: 800,
-          temperature: 0.2,
-        }),
+      const completion = await this.client.chat.completions.create({
+        model: "openrouter/sonoma-dusk-alpha",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 300,
+        temperature: 0.1,
       })
-
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      return data.choices[0]?.message?.content || "Summary could not be generated."
+      return completion.choices[0]?.message?.content || "Summary could not be generated."
     } catch (error) {
       console.error("Error calling OpenRouter API:", error)
       throw new Error("Failed to generate document summary")
@@ -75,35 +70,24 @@ export class OpenRouterClient {
     ${content.substring(0, 2000)}...`
 
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct:free",
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert document analyst for KMRL. Always return valid JSON.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          max_tokens: 400,
-          temperature: 0.1,
-        }),
+      const completion = await this.client.chat.completions.create({
+        model: "openrouter/sonoma-dusk-alpha",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert document analyst for KMRL. Always return valid JSON.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: 400,
+        temperature: 0.1,
+        response_format: { type: "json_object" },
       })
 
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      const content_text = data.choices[0]?.message?.content || "{}"
+      const content_text = completion.choices[0]?.message?.content || "{}"
 
       try {
         const parsed = JSON.parse(content_text)
@@ -177,31 +161,20 @@ export class OpenRouterClient {
     ${existingDocs.map((doc, i) => `${i}: ${doc.substring(0, 500)}`).join("\n\n")}`
 
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct:free",
-          messages: [
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          max_tokens: 200,
-          temperature: 0.1,
-        }),
+      const completion = await this.client.chat.completions.create({
+        model: "openrouter/sonoma-dusk-alpha",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: 200,
+        temperature: 0.1,
+        response_format: { type: "json_object" },
       })
 
-      if (!response.ok) {
-        return existingDocs.map(() => 0)
-      }
-
-      const data = await response.json()
-      const content_text = data.choices[0]?.message?.content || "[]"
+      const content_text = completion.choices[0]?.message?.content || "[]"
 
       try {
         return JSON.parse(content_text)
@@ -216,6 +189,4 @@ export class OpenRouterClient {
 }
 
 // Initialize OpenRouter client with the provided API key
-export const openRouterClient = new OpenRouterClient(
-  "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",
-)
+export const openRouterClient = new OpenRouterClient(process.env.OPENROUTER_API_KEY || "")

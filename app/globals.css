@@ -125,3 +125,6 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Streamdown Tailwind source for typography, code blocks, math, etc. */
+@source "../node_modules/streamdown/dist/index.js";
