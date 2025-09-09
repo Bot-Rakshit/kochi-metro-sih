@@ -3,8 +3,9 @@ import { streamText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { NextRequest } from "next/server"
 import { openRouterClient } from "@/lib/openrouter"
+import { prisma } from "@/lib/prisma"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 
 const openai = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY || "",
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
         ? `ഈ KMRL ഡോക്യുമെന്റിന്റെ പ്രധാന പോയിന്റുകൾ സംഗ്രഹിക്കുക. പ്രധാന നടപടികൾ, സമയപരിധി, ഉത്തരവാദിത്തങ്ങൾ എന്നിവ ഉൾപ്പെടുത്തുക. ചുരുക്കമായി (പരമാവധി 120 വാക്കുകൾ), 4-6 ബുള്ളറ്റ് പോയിന്റുകളായി നൽകുക. Markdown ഉപയോഗിച്ച് പട്ടികയായി നൽകുക:\n\n${content}`
         : `Summarize this KMRL document focusing on key actionable items, deadlines, responsibilities, and operational impacts. Keep it very brief: 4-6 bullet points, max ~120 words total. Return as Markdown bullet list:\n\n${content}`
 
-    // If client requests non-streaming (used by AI panel), return plain text
+    // If client requests non-streaming (used by AI panel), return JSON and persist
     const noStream = req.headers.get("x-no-stream") === "1"
     if (noStream) {
       console.log("/api/summarize: no-stream mode enabled")
@@ -52,11 +53,38 @@ export async function POST(req: NextRequest) {
         openRouterClient.summarizeDocument(content, language),
         openRouterClient.categorizeDocument(content),
       ])
-      console.timeEnd("/api/summarize total")
-      return new Response(JSON.stringify({ summary, ...categorization }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+
+      // Persist to DB
+      const document = await prisma.document.create({
+        data: {
+          filename: `pasted-${Date.now()}.txt`,
+          mimeType: "text/plain",
+          sizeBytes: content.length,
+          content,
+          language: language || "english",
+          summary: {
+            create: {
+              summary,
+              department: categorization.department,
+              priority: categorization.priority,
+              category: categorization.category,
+              tags: categorization.tags,
+              actionItems: categorization.actionItems,
+              deadline: categorization.deadline,
+              stakeholders: categorization.stakeholders,
+            },
+          },
+        },
       })
+
+      console.timeEnd("/api/summarize total")
+      return new Response(
+        JSON.stringify({ id: document.id, summary, ...categorization }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
     console.time("/api/summarize streamText")

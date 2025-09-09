@@ -15,6 +15,8 @@ export class OpenRouterClient {
     })
   }
 
+
+
   async summarizeDocument(
     content: string,
     language: "english" | "malayalam" = "english",
@@ -185,6 +187,48 @@ export class OpenRouterClient {
       console.error("Error finding similar documents:", error)
       return existingDocs.map(() => 0)
     }
+  }
+}
+
+// Generate a concise, human-readable title using the LLM
+export async function generateTitleWithLLM(
+  client: OpenRouterClient,
+  content: string,
+  language: "english" | "malayalam" = "english",
+): Promise<string> {
+  try {
+    // Reuse underlying OpenAI client via a light wrapper using summarize-style call
+    // and instruct the model to ONLY return a short title.
+    const systemPrompt =
+      language === "malayalam"
+        ? "നിങ്ങൾ ഒരു വിദഗ്ധ എഡിറ്ററാണ്. നൽകിയിരിക്കുന്ന ഉള്ളടക്കത്തിന് പരമാവധി 8 വാക്കുള്ള, വ്യക്തവും പ്രൊഫഷണലുമായ തലക്കെട്ട് മാത്രം തിരിച്ചു നൽകുക. ഉദ്ധരണികൾ, അധിക പുംബൊയിന്റുകൾ, അവസാനത്തിൽ പീരീഡ് എന്നിവ ഒഴിവാക്കുക."
+        : "You are an expert editor. Return ONLY a clear, professional title (max 8 words) for the content. No quotes or trailing punctuation."
+
+    // The OpenRouterClient encapsulates the HTTP client. We'll issue a direct call similar to summarize.
+    // We can't directly access its private client, so instead call categorize/summarize pattern isn't suitable.
+    // Implement a minimal inline fetch mirroring summarizeDocument with the same base URL and key.
+    const baseUrl = "https://openrouter.ai/api/v1"
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${(client as any).apiKey || process.env.OPENROUTER_API_KEY || ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "openrouter/sonoma-dusk-alpha",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: content.substring(0, 4000) },
+        ],
+        max_tokens: 32,
+        temperature: 0.2,
+      }),
+    })
+    const data = await resp.json()
+    const title = data?.choices?.[0]?.message?.content?.trim() || ""
+    return title
+  } catch {
+    return ""
   }
 }
 

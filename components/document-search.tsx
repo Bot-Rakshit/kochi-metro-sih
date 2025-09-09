@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Search,
   Filter,
@@ -46,7 +47,7 @@ interface SearchFilters {
 
 interface SearchResult {
   id: string
-  title: string
+  title?: string
   summary: string
   department: string
   priority: "low" | "medium" | "high" | "urgent"
@@ -58,73 +59,7 @@ interface SearchResult {
   tags: string[]
 }
 
-const mockSearchResults: SearchResult[] = [
-  {
-    id: "1",
-    title: "Track Maintenance Report - Section A12",
-    summary: "Routine inspection completed. Minor wear detected on rail joints requiring scheduled maintenance.",
-    department: "Engineering",
-    priority: "high",
-    category: "maintenance",
-    language: "English",
-    date: "2024-12-07",
-    relevanceScore: 95,
-    highlights: ["track maintenance", "rail joints", "scheduled maintenance"],
-    tags: ["track", "maintenance", "inspection", "rails"],
-  },
-  {
-    id: "2",
-    title: "സുരക്ഷാ നിർദ്ദേശങ്ങൾ - സ്റ്റേഷൻ കൺട്രോൾ",
-    summary: "New safety protocols for station crowd management during peak hours.",
-    department: "Safety",
-    priority: "urgent",
-    category: "safety",
-    language: "Malayalam",
-    date: "2024-12-07",
-    relevanceScore: 88,
-    highlights: ["safety protocols", "crowd management", "peak hours"],
-    tags: ["safety", "crowd", "station", "protocol"],
-  },
-  {
-    id: "3",
-    title: "Quarterly Financial Review Q4 2024",
-    summary: "Revenue targets exceeded by 8%. Operational costs reduced through efficiency improvements.",
-    department: "Finance",
-    priority: "medium",
-    category: "financial",
-    language: "English",
-    date: "2024-12-06",
-    relevanceScore: 82,
-    highlights: ["revenue targets", "operational costs", "efficiency improvements"],
-    tags: ["finance", "revenue", "quarterly", "review"],
-  },
-  {
-    id: "4",
-    title: "Vendor Contract Renewal - Cleaning Services",
-    summary: "Annual contract renewal for station cleaning services with performance metrics review.",
-    department: "Procurement",
-    priority: "medium",
-    category: "contract",
-    language: "English",
-    date: "2024-12-05",
-    relevanceScore: 75,
-    highlights: ["vendor contract", "cleaning services", "performance metrics"],
-    tags: ["procurement", "contract", "cleaning", "vendor"],
-  },
-  {
-    id: "5",
-    title: "IT System Upgrade Proposal",
-    summary: "Proposal for upgrading legacy IT infrastructure to support digital transformation initiatives.",
-    department: "IT",
-    priority: "high",
-    category: "technical",
-    language: "English",
-    date: "2024-12-04",
-    relevanceScore: 70,
-    highlights: ["IT system upgrade", "legacy infrastructure", "digital transformation"],
-    tags: ["IT", "upgrade", "infrastructure", "digital"],
-  },
-]
+const emptyResults: SearchResult[] = []
 
 const departments = [
   "Engineering",
@@ -177,31 +112,46 @@ export function DocumentSearch() {
     sortOrder: "desc",
   })
 
-  const [searchHistory, setSearchHistory] = useState<string[]>([
-    "track maintenance",
-    "safety protocols",
-    "financial report",
-    "vendor contracts",
-  ])
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
 
-  const [savedSearches, setSavedSearches] = useState<string[]>([
-    "Urgent safety documents",
-    "Engineering maintenance reports",
-    "Financial quarterly reviews",
-  ])
+  const [savedSearches, setSavedSearches] = useState<string[]>([])
 
   const [showFilters, setShowFilters] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
 
   // Filter and sort results
+  const [dbResults, setDbResults] = useState<SearchResult[]>(emptyResults)
+
+  useEffect(() => {
+    const load = async () => {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(filters.query || "")}`)
+      const data = await res.json()
+      const mapped: SearchResult[] = (data.results || []).map((r: any) => ({
+        id: r.id,
+        title: r.title || r.filename,
+        summary: r.summary?.summary || "",
+        department: r.summary?.department || "General",
+        priority: r.summary?.priority || "medium",
+        category: r.summary?.category || "general",
+        language: r.language || "english",
+        date: r.createdAt,
+        relevanceScore: 100,
+        highlights: r.summary?.tags || [],
+        tags: r.summary?.tags || [],
+      }))
+      setDbResults(mapped)
+    }
+    load()
+  }, [filters.query])
+
   const filteredResults = useMemo(() => {
-    let results = mockSearchResults
+    let results = dbResults
 
     // Text search
     if (filters.query) {
       results = results.filter(
         (doc) =>
-          doc.title.toLowerCase().includes(filters.query.toLowerCase()) ||
+          (doc.title || "").toLowerCase().includes(filters.query.toLowerCase()) ||
           doc.summary.toLowerCase().includes(filters.query.toLowerCase()) ||
           doc.tags.some((tag) => tag.toLowerCase().includes(filters.query.toLowerCase())),
       )
@@ -269,7 +219,7 @@ export function DocumentSearch() {
     })
 
     return results
-  }, [filters])
+  }, [filters, dbResults])
 
   const handleSearch = async (query: string) => {
     if (!query.trim()) return
@@ -333,7 +283,11 @@ export function DocumentSearch() {
               />
             </div>
             <Button onClick={() => handleSearch(filters.query)} disabled={isSearching}>
-              {isSearching ? "Searching..." : "Search"}
+              {isSearching ? (
+                <span className="inline-flex items-center gap-2"><Spinner className="h-4 w-4" /> Searching...</span>
+              ) : (
+                "Search"
+              )}
             </Button>
             <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
               <Filter className="h-4 w-4" />
@@ -679,12 +633,15 @@ export function DocumentSearch() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {isSearching && (
+              <div className="flex items-center justify-center py-8"><Spinner className="h-6 w-6" /></div>
+            )}
             {filteredResults.map((result) => (
               <div key={result.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium">{result.title}</h3>
+                      <h3 className="font-medium">{result.title || "Untitled Document"}</h3>
                       <Badge variant="outline" className="text-xs">
                         {result.language}
                       </Badge>

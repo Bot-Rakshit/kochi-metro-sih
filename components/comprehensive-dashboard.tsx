@@ -1,14 +1,15 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { FileText, Clock, Users, AlertTriangle, TrendingUp, Upload } from "lucide-react"
-import { DocumentUpload } from "@/components/document-upload"
+import { Building2, FileText, Clock, Users, AlertTriangle, TrendingUp, Upload, ListTodo } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Spinner } from "@/components/ui/spinner"
+import Link from "next/link"
+import { ActionItemsDashboard } from "./action-items-dashboard"
+import { DocumentUpload } from "./document-upload"
+import { Button } from "./ui/button"
 
-export function DocumentDashboard() {
+export function ComprehensiveDashboard() {
   const [stats, setStats] = useState<{ documentsToday: number; pendingReview: number; activeUsers: number; summariesToday: number } | null>(null)
   const [recent, setRecent] = useState<Array<{ id: string; title?: string; filename: string; summary?: { summary: string; department: string; category: string } }>>([])
   const [loading, setLoading] = useState(true)
@@ -33,10 +34,9 @@ export function DocumentDashboard() {
     <div className="space-y-8">
       {/* Welcome Section */}
       <div className="text-center space-y-4">
-        <h2 className="text-3xl font-bold text-balance">AI-Powered Document Management for KMRL</h2>
+        <h2 className="text-3xl font-bold text-balance">Comprehensive Dashboard</h2>
         <p className="text-lg text-muted-foreground text-pretty max-w-2xl mx-auto">
-          Streamline your document workflow with intelligent summarization, multilingual support, and automated routing
-          for all KMRL departments.
+          A high-level overview of all document activity and key metrics.
         </p>
       </div>
 
@@ -51,10 +51,9 @@ export function DocumentDashboard() {
             <div className="text-2xl font-bold flex items-center gap-2">
               {loading ? <Spinner /> : stats?.documentsToday ?? 0}
             </div>
-            <p className="text-xs text-muted-foreground">Today</p>
+            <p className="text-xs text-muted-foreground">Uploaded today</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
@@ -65,7 +64,6 @@ export function DocumentDashboard() {
             <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
@@ -76,7 +74,6 @@ export function DocumentDashboard() {
             <p className="text-xs text-muted-foreground">Across all departments</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">AI Summaries</CardTitle>
@@ -89,70 +86,45 @@ export function DocumentDashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Quick Upload
-            </CardTitle>
-            <CardDescription>Upload documents for AI processing and automatic routing</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DocumentUpload />
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Documents */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Documents</CardTitle>
+              <CardDescription>Latest documents processed by the AI system</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {loading && (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner className="h-6 w-6" />
+                  </div>
+                )}
+                {!loading &&
+                  recent.map((doc) => (
+                    <div key={doc.id} className="flex items-start justify-between p-4 border rounded-lg">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium truncate max-w-[60ch]">{doc.title || doc.filename}</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{doc.summary?.summary}</p>
+                      </div>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/documents/${doc.id}`}>View</Link>
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Priority Alerts
-            </CardTitle>
-            <CardDescription>Critical documents requiring immediate attention</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {/* Future: drive from DB using priority field */}
-          </CardContent>
-        </Card>
+        {/* Action Items */}
+        <div className="lg:col-span-1">
+          <ActionItemsDashboard />
+        </div>
       </div>
-
-      {/* Recent Documents */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Documents</CardTitle>
-          <CardDescription>Latest documents processed by the AI system</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {loading && (
-              <div className="flex items-center justify-center py-8">
-                <Spinner className="h-6 w-6" />
-              </div>
-            )}
-            {!loading && recent.map((doc) => (
-              <div key={doc.id} className="flex items-start justify-between p-4 border rounded-lg">
-                <div className="space-y-2 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-medium truncate max-w-[60ch]">{doc.title || doc.filename}</h4>
-                    <Badge variant="outline" className="text-xs">
-                      {doc.summary?.category || ""}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-3">{doc.summary?.summary}</p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>{doc.summary?.department}</span>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => (window.location.href = `/documents/${doc.id}`)}>
-                  View
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

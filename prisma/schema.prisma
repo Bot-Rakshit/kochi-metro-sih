@@ -1,0 +1,44 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Document {
+  id           String        @id @default(cuid())
+  title        String?
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  content      String
+  language     String        @default("english")
+  reviewStatus ReviewStatus  @default(PENDING)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  summary      Summary?
+}
+
+model Summary {
+  id            String   @id @default(cuid())
+  documentId    String   @unique
+  summary       String
+  department    String
+  priority      String
+  category      String
+  tags          String[]
+  actionItems   String[]
+  deadline      String?
+  stakeholders  String[]
+  createdAt     DateTime @default(now())
+  Document      Document @relation(fields: [documentId], references: [id])
+}

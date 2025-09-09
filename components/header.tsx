@@ -2,7 +2,6 @@
 
 import { Building2, FileText, Languages, LayoutDashboard, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { useState } from "react"
 import { DocumentUpload } from "@/components/document-upload"
 import {
@@ -47,6 +46,13 @@ export function Header() {
               </Button>
             </Link>
 
+            <Link href="/documents">
+              <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+                <FileText className="h-4 w-4" />
+                Documents
+              </Button>
+            </Link>
+
             <Link href="/summarize">
               <Button variant="outline" size="sm" className="gap-2 bg-transparent">
                 <FileText className="h-4 w-4" />
@@ -77,7 +83,6 @@ export function Header() {
               </DialogContent>
             </Dialog>
 
-            <ThemeToggle />
           </div>
         </div>
       </div>

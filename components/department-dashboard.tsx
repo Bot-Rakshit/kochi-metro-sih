@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ import {
   CheckCircle,
   BarChart3,
 } from "lucide-react"
+import { ActionItemsDashboard } from "./action-items-dashboard"
 
 type Department =
   | "Engineering"
@@ -100,134 +101,17 @@ const departmentConfig = {
   },
 }
 
-const departmentData = {
-  Engineering: {
-    stats: {
-      totalDocs: 1247,
-      pendingReview: 23,
-      activeProjects: 8,
-      completionRate: 94,
-    },
-    recentDocs: [
-      {
-        title: "Track Inspection Report - Line 1 Section A",
-        priority: "high" as const,
-        time: "15 minutes ago",
-        summary: "Routine inspection identified minor rail wear requiring maintenance within 30 days.",
-        actionItems: ["Schedule maintenance crew", "Order replacement materials"],
-      },
-      {
-        title: "Signal System Upgrade Proposal",
-        priority: "medium" as const,
-        time: "2 hours ago",
-        summary: "Technical specifications for upgrading legacy signaling systems to modern CBTC.",
-        actionItems: ["Review technical specs", "Budget approval required"],
-      },
-      {
-        title: "Rolling Stock Maintenance Schedule Q1",
-        priority: "low" as const,
-        time: "1 day ago",
-        summary: "Quarterly maintenance schedule for all metro trains and equipment.",
-        actionItems: ["Coordinate with operations", "Resource allocation"],
-      },
-    ],
-    alerts: [
-      { message: "Critical track maintenance due in 5 days", type: "urgent" as const },
-      { message: "Equipment inspection overdue", type: "high" as const },
-    ],
-  },
-  Safety: {
-    stats: {
-      totalDocs: 892,
-      pendingReview: 45,
-      activeIncidents: 3,
-      complianceRate: 98,
-    },
-    recentDocs: [
-      {
-        title: "സുരക്ഷാ പ്രോട്ടോക്കോൾ അപ്ഡേറ്റ് - പ്ലാറ്റ്ഫോം സുരക്ഷ",
-        priority: "urgent" as const,
-        time: "30 minutes ago",
-        summary: "Updated platform safety protocols for peak hour crowd management.",
-        actionItems: ["Train station staff", "Update safety signage"],
-      },
-      {
-        title: "Incident Report - Minor Passenger Injury",
-        priority: "high" as const,
-        time: "3 hours ago",
-        summary: "Passenger slip incident at Aluva station, investigation completed.",
-        actionItems: ["File regulatory report", "Review platform conditions"],
-      },
-    ],
-    alerts: [
-      { message: "Safety audit scheduled for next week", type: "medium" as const },
-      { message: "Emergency drill compliance pending", type: "high" as const },
-    ],
-  },
-  Operations: {
-    stats: {
-      totalDocs: 2156,
-      pendingReview: 67,
-      activeRoutes: 25,
-      onTimePerformance: 96,
-    },
-    recentDocs: [
-      {
-        title: "Daily Operations Report - Peak Hour Analysis",
-        priority: "medium" as const,
-        time: "1 hour ago",
-        summary: "Analysis of morning peak hour performance and passenger flow patterns.",
-        actionItems: ["Adjust train frequency", "Monitor crowd levels"],
-      },
-      {
-        title: "Service Disruption Protocol Update",
-        priority: "high" as const,
-        time: "4 hours ago",
-        summary: "Updated procedures for handling service disruptions and passenger communication.",
-        actionItems: ["Train control room staff", "Update passenger apps"],
-      },
-    ],
-    alerts: [
-      { message: "Peak hour capacity at 95%", type: "medium" as const },
-      { message: "Weather advisory for tomorrow", type: "low" as const },
-    ],
-  },
-  Finance: {
-    stats: {
-      totalDocs: 743,
-      pendingReview: 12,
-      budgetUtilization: 87,
-      revenueGrowth: 8,
-    },
-    recentDocs: [
-      {
-        title: "Q4 2024 Financial Performance Report",
-        priority: "high" as const,
-        time: "2 hours ago",
-        summary: "Quarterly financial analysis showing 8% revenue growth and cost optimization.",
-        actionItems: ["Board presentation", "Budget planning for Q1"],
-      },
-      {
-        title: "Vendor Payment Authorization - Track Maintenance",
-        priority: "medium" as const,
-        time: "5 hours ago",
-        summary: "Payment approval for completed track maintenance work by contractor.",
-        actionItems: ["Verify work completion", "Process payment"],
-      },
-    ],
-    alerts: [
-      { message: "Budget review meeting tomorrow", type: "medium" as const },
-      { message: "Audit preparation required", type: "low" as const },
-    ],
-  },
-}
+// mock departmentData removed; live data used instead
 
 export function DepartmentDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<Department>("All")
   const [viewMode, setViewMode] = useState<"overview" | "documents" | "analytics">("overview")
+  const [deptDocs, setDeptDocs] = useState<any[]>([])
+  const [deptLoading, setDeptLoading] = useState(false)
+  const departments = (Object.keys(departmentConfig).filter((d) => d !== "All") as Department[])
+  const [deptOverview, setDeptOverview] = useState<Record<string, { docs: number; pending: number }>>({})
 
   const currentDeptConfig = departmentConfig[selectedDepartment]
-  const currentDeptData = departmentData[selectedDepartment as keyof typeof departmentData]
   const DeptIcon = currentDeptConfig.icon
 
   const getPriorityColor = (priority: string) => {
@@ -244,6 +128,48 @@ export function DepartmentDashboard() {
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
+
+  useEffect(() => {
+    if (selectedDepartment === "All") {
+      setDeptDocs([])
+      return
+    }
+    setDeptLoading(true)
+    fetch(`/api/documents?department=${encodeURIComponent(selectedDepartment)}`)
+      .then((r) => r.json())
+      .then((data) => setDeptDocs(data.documents || []))
+      .catch(() => setDeptDocs([]))
+      .finally(() => setDeptLoading(false))
+  }, [selectedDepartment])
+
+  const totalDocs = deptDocs.length
+  const urgentCount = deptDocs.filter((d) => d.summary?.priority === "urgent").length
+  const highCount = deptDocs.filter((d) => d.summary?.priority === "high").length
+  const pendingReview = urgentCount + highCount
+  const alerts = deptDocs
+    .filter((d) => ["urgent", "high"].includes(d.summary?.priority || ""))
+    .slice(0, 3)
+
+  useEffect(() => {
+    const loadAll = async () => {
+      try {
+        const entries = await Promise.all(
+          departments.map(async (dept) => {
+            const res = await fetch(`/api/documents?department=${encodeURIComponent(dept)}`)
+            const data = await res.json()
+            const docs = data.documents || []
+            const pending = docs.filter((d: any) => ["urgent", "high"].includes(d.summary?.priority || "")).length
+            return [dept, { docs: docs.length, pending }] as const
+          }),
+        )
+        setDeptOverview(Object.fromEntries(entries))
+      } catch {
+        setDeptOverview({})
+      }
+    }
+    loadAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -281,8 +207,8 @@ export function DepartmentDashboard() {
       </Card>
 
       {/* Department-specific Content */}
-      {selectedDepartment !== "All" && currentDeptData && (
-        <Tabs value={viewMode} onValueChange={(value: "overview" | "documents" | "analytics") => setViewMode(value)}>
+      {selectedDepartment !== "All" && (
+        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as any)}>
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -298,7 +224,7 @@ export function DepartmentDashboard() {
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{currentDeptData.stats.totalDocs.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{totalDocs.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">This month</p>
                 </CardContent>
               </Card>
@@ -309,7 +235,7 @@ export function DepartmentDashboard() {
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{currentDeptData.stats.pendingReview}</div>
+                  <div className="text-2xl font-bold">{pendingReview}</div>
                   <p className="text-xs text-muted-foreground">Requires attention</p>
                 </CardContent>
               </Card>
@@ -328,11 +254,7 @@ export function DepartmentDashboard() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {selectedDepartment === "Finance"
-                      ? `${Object.values(currentDeptData.stats)[2]}%`
-                      : Object.values(currentDeptData.stats)[2]}
-                  </div>
+                  <div className="text-2xl font-bold">{highCount}</div>
                   <p className="text-xs text-muted-foreground">Current status</p>
                 </CardContent>
               </Card>
@@ -351,7 +273,7 @@ export function DepartmentDashboard() {
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{Object.values(currentDeptData.stats)[3]}%</div>
+                  <div className="text-2xl font-bold">{urgentCount}</div>
                   <p className="text-xs text-muted-foreground">Performance metric</p>
                 </CardContent>
               </Card>
@@ -368,19 +290,20 @@ export function DepartmentDashboard() {
                   <CardDescription>Critical items requiring immediate attention</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {currentDeptData.alerts.map((alert, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        alert.type === "urgent"
-                          ? "bg-red-50 border border-red-200"
-                          : alert.type === "high"
-                            ? "bg-orange-50 border border-orange-200"
-                            : "bg-yellow-50 border border-yellow-200"
-                      }`}
-                    >
-                      <p className="font-medium text-sm">{alert.message}</p>
-                      <Badge className={getPriorityColor(alert.type)}>{alert.type.toUpperCase()}</Badge>
+                  {alerts.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between p-3 rounded-lg border bg-card/70">
+                      <p className="font-medium text-sm truncate max-w-[60ch]">{d.title || d.filename}</p>
+                      <Badge
+                        className={
+                          d.summary?.priority === "urgent"
+                            ? "bg-red-600 text-white"
+                            : d.summary?.priority === "high"
+                              ? "bg-orange-600 text-white"
+                              : "bg-yellow-500 text-white"
+                        }
+                      >
+                        {d.summary?.priority?.toUpperCase()}
+                      </Badge>
                     </div>
                   ))}
                 </CardContent>
@@ -395,15 +318,17 @@ export function DepartmentDashboard() {
                   <CardDescription>Latest documents for your department</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {currentDeptData.recentDocs.slice(0, 2).map((doc, index) => (
-                    <div key={index} className="border rounded-lg p-3">
+                  {deptDocs.slice(0, 5).map((doc) => (
+                    <div key={doc.id} className="border rounded-lg p-3">
                       <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-medium text-sm">{doc.title}</h4>
-                        <Badge className={getPriorityColor(doc.priority)}>{doc.priority.toUpperCase()}</Badge>
+                        <h4 className="font-medium text-sm">{doc.title || doc.filename}</h4>
+                        <Badge className={getPriorityColor(doc.summary?.priority || "medium")}>
+                          {doc.summary?.priority?.toUpperCase()}
+                        </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mb-2">{doc.summary}</p>
+                      <p className="text-xs text-muted-foreground mb-2">{doc.summary?.summary}</p>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">{doc.time}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(doc.createdAt).toLocaleString()}</span>
                         <Button variant="outline" size="sm">
                           View
                         </Button>
@@ -423,24 +348,26 @@ export function DepartmentDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {currentDeptData.recentDocs.map((doc, index) => (
+                  {deptDocs.map((doc, index) => (
                     <div key={index} className="flex items-start justify-between p-4 border rounded-lg">
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{doc.title}</h4>
-                          <Badge className={getPriorityColor(doc.priority)}>{doc.priority.toUpperCase()}</Badge>
+                          <Badge className={getPriorityColor(doc.summary?.priority || "medium")}>
+                            {doc.summary?.priority?.toUpperCase()}
+                          </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{doc.summary}</p>
+                        <p className="text-sm text-muted-foreground">{doc.summary?.summary}</p>
                         <div className="space-y-1">
                           <p className="text-xs font-medium">Action Items:</p>
-                          {doc.actionItems.map((item, itemIndex) => (
+                          {(doc.summary?.actionItems || []).map((item: string, itemIndex: number) => (
                             <div key={itemIndex} className="flex items-center gap-2 text-xs">
                               <CheckCircle className="h-3 w-3 text-green-600" />
                               {item}
                             </div>
                           ))}
                         </div>
-                        <p className="text-xs text-muted-foreground">{doc.time}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(doc.createdAt).toLocaleString()}</p>
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm">
@@ -524,47 +451,49 @@ export function DepartmentDashboard() {
 
       {/* All Departments Overview */}
       {selectedDepartment === "All" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(departmentConfig)
-            .filter(([dept]) => dept !== "All")
-            .map(([dept, config]) => {
-              const Icon = config.icon
-              const deptData = departmentData[dept as keyof typeof departmentData]
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="lg:col-span-1">
+            <ActionItemsDashboard />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:col-span-1">
+            {Object.entries(departmentConfig)
+              .filter(([dept]) => dept !== "All")
+              .map(([dept, config]) => {
+                const Icon = config.icon
 
-              return (
-                <Card
-                  key={dept}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => setSelectedDepartment(dept as Department)}
-                >
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${config.bgColor}`}>
-                        <Icon className={`h-6 w-6 ${config.color}`} />
+                return (
+                  <Card
+                    key={dept}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setSelectedDepartment(dept as Department)}
+                  >
+                    <CardHeader>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${config.bgColor}`}>
+                          <Icon className={`h-6 w-6 ${config.color}`} />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{dept}</CardTitle>
+                          <CardDescription className="text-sm">{config.description}</CardDescription>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{dept}</CardTitle>
-                        <CardDescription className="text-sm">{config.description}</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  {deptData && (
+                    </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Documents</p>
-                          <p className="font-bold">{deptData.stats.totalDocs.toLocaleString()}</p>
+                          <p className="font-bold">{(deptOverview[dept]?.docs || 0).toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Pending</p>
-                          <p className="font-bold">{deptData.stats.pendingReview}</p>
+                          <p className="font-bold">{deptOverview[dept]?.pending || 0}</p>
                         </div>
                       </div>
                     </CardContent>
-                  )}
-                </Card>
-              )
-            })}
+                  </Card>
+                )
+              })}
+          </div>
         </div>
       )}
     </div>
