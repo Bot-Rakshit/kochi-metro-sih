@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     const ranked = all
       .map((d: { id: string; content: string }, i: number) => ({ id: d.id, score: scores[i] || 0 }))
-      .sort((a, b) => b.score - a.score)
+      .sort((a: { id: string; score: number }, b: { id: string; score: number }) => b.score - a.score)
       .slice(0, 10)
 
     return NextResponse.json({ similar: ranked })
