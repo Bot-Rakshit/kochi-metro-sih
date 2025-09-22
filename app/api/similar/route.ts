@@ -8,10 +8,10 @@ export async function POST(req: NextRequest) {
     if (!content) return NextResponse.json({ error: "content is required" }, { status: 400 })
 
     const all = await prisma.document.findMany({ select: { id: true, content: true } })
-    const scores = await openRouterClient.findSimilarDocuments(content, all.map((d) => d.content))
+    const scores = await openRouterClient.findSimilarDocuments(content, all.map((d: { id: string; content: string }) => d.content))
 
     const ranked = all
-      .map((d, i) => ({ id: d.id, score: scores[i] || 0 }))
+      .map((d: { id: string; content: string }, i) => ({ id: d.id, score: scores[i] || 0 }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 10)
 
